@@ -8,6 +8,8 @@ from google.genai.chats import Chat
 from google.genai.types import (
     GenerateContentConfig,
     Part,
+    PartMediaResolution,
+    PartMediaResolutionLevel,
     PrebuiltVoiceConfig,
     SpeechConfig,
     ThinkingConfig,
@@ -114,22 +116,31 @@ def main() -> None:
     # Replay prior turns; chat.send_message keeps model-side history, this keeps the UI in sync.
     for turn in st.session_state.get("turns", []):
         with st.chat_message("user"):
-            st.audio(turn["input"], format="audio/wav")
+            st.audio(turn["input"], format=turn.get("input_mime", "audio/wav"))
         with st.chat_message("assistant"):
             st.markdown(turn["text"])
             st.audio(turn["output"], format="audio/wav")
 
     audio_input = st.audio_input("Record your singing")
+    uploaded = st.file_uploader(
+        "...or upload an audio/video file",
+        type=["wav", "mp3", "m4a", "aac", "ogg", "flac", "mp4", "mov", "webm"],
+    )
 
-    if audio_input:
-        data = audio_input.getvalue()
+    source = audio_input or uploaded
+
+    if source:
+        data = source.getvalue()
+        mime_type = source.type or "audio/wav"
         with st.chat_message("user"):
-            st.audio(data, format="audio/wav")
+            st.audio(data, format=mime_type)
 
         try:
             with st.spinner("Analyzing your singing..."):
                 response = chat.send_message(
-                    message=Part.from_bytes(data=data, mime_type="audio/wav")
+                    message=Part.from_bytes(data=data, mime_type=mime_type, media_resolution=PartMediaResolution(
+                level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+            ),)
                 )
                 text = response.text or "Sorry, I couldn't analyze that."
 
@@ -144,7 +155,14 @@ def main() -> None:
             st.audio(output_audio_bytes, format="audio/wav", autoplay=True)
 
         turns = st.session_state.setdefault("turns", [])
-        turns.append({"input": data, "text": text, "output": output_audio_bytes})
+        turns.append(
+            {
+                "input": data,
+                "input_mime": mime_type,
+                "text": text,
+                "output": output_audio_bytes,
+            }
+        )
         # ponytail: UI memory cap only; model-side chat history is untouched.
         st.session_state.turns = turns[-MAX_TURNS:]
 
