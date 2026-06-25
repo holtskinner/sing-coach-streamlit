@@ -116,7 +116,10 @@ def main() -> None:
     # Replay prior turns; chat.send_message keeps model-side history, this keeps the UI in sync.
     for turn in st.session_state.get("turns", []):
         with st.chat_message("user"):
-            st.audio(turn["input"], format=turn.get("input_mime", "audio/wav"))
+            if turn.get("input_mime") == "youtube":
+                st.video(turn["input"])
+            else:
+                st.audio(turn["input"], format=turn.get("input_mime", "audio/wav"))
         with st.chat_message("assistant"):
             st.markdown(turn["text"])
             st.audio(turn["output"], format="audio/wav")
@@ -126,22 +129,39 @@ def main() -> None:
         "...or upload an audio/video file",
         type=["wav", "mp3", "m4a", "aac", "ogg", "flac", "mp4", "mov", "webm"],
     )
+    youtube_url = st.text_input("...or paste a YouTube URL")
 
     source = audio_input or uploaded
 
-    if source:
-        data = source.getvalue()
-        mime_type = source.type or "audio/wav"
-        with st.chat_message("user"):
-            st.audio(data, format=mime_type)
+    if source or youtube_url:
+        if source:
+            data = source.getvalue()
+            mime_type = source.type or "audio/wav"
+            message = Part.from_bytes(
+                data=data,
+                mime_type=mime_type,
+                media_resolution=PartMediaResolution(
+                    level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+                ),
+            )
+            with st.chat_message("user"):
+                st.audio(data, format=mime_type)
+        else:
+            data = youtube_url
+            mime_type = "youtube"
+            message = Part.from_uri(
+                file_uri=youtube_url,
+                mime_type="video/*",
+                media_resolution=PartMediaResolution(
+                    level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+                ),
+            )
+            with st.chat_message("user"):
+                st.video(youtube_url)
 
         try:
             with st.spinner("Analyzing your singing..."):
-                response = chat.send_message(
-                    message=Part.from_bytes(data=data, mime_type=mime_type, media_resolution=PartMediaResolution(
-                level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
-            ),)
-                )
+                response = chat.send_message(message=message)
                 text = response.text or "Sorry, I couldn't analyze that."
 
             with st.spinner("Generating voice feedback..."):
