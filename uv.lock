@@ -825,7 +825,7 @@ wheels = [
 ]
 
 [[package]]
-name = "sing-coach-convert"
+name = "sing-coach-streamlit"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

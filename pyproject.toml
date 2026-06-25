@@ -1,5 +1,5 @@
 [project]
-name = "sing-coach-convert"
+name = "sing-coach-streamlit"
 version = "0.1.0"
 description = "AriaCoach: a Streamlit singing coach powered by Gemini audio analysis and TTS"
 readme = "README.md"
