@@ -25,7 +25,7 @@ LANGUAGE_CODE = "en-us"
 def load_clients() -> tuple[Chat, genai.Client]:
     """Load Google Gen AI chat session and client."""
     load_dotenv(override=True)
-    client = genai.Client()
+    client = genai.Client(location="global")
 
     chat = client.chats.create(
         model=MODEL_ID,

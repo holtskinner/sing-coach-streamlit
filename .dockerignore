@@ -1,0 +1,24 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Local secrets and env
+.env
+credentials.json
+
+# VCS and tooling
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+
+# Docs / misc
+README.md

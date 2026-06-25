@@ -1,36 +1,28 @@
-# Live Translation Demo with Streamlit
+# AriaCoach - Singing Teacher
 
 [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run)
 
-This application demonstrates a Cloud Run application that uses the [Streamlit](https://streamlit.io/) framework.
+A [Streamlit](https://streamlit.io/) app that records your singing, sends it to
+Gemini for coaching feedback, and speaks the feedback back using Gemini TTS.
+Runs locally or on Cloud Run.
 
-## Run the Application locally (on Cloud Shell)
+## Run locally
 
-> NOTE: **Before you move forward, ensure that you have followed the instructions in [SETUP.md](../SETUP.md).**
-> Additionally, ensure that you have cloned this repository and you are currently in the `live-translation-demo` folder. This should be your active working directory for the rest of the commands.
-
-To run the Streamlit Application locally (on Cloud Shell), we need to perform the following steps:
-
-1. Setup the Python virtual environment and install the dependencies:
-
-   In Cloud Shell, execute the following commands:
+1. Install dependencies with [uv](https://docs.astral.sh/uv/):
 
    ```bash
-   python3 -m venv gemini-streamlit
-   source gemini-streamlit/bin/activate
-   pip install -r requirements.txt
+   uv sync
    ```
 
-2. Your application requires the following environment variables:
-
-   - If you are using standard Vertex AI:
+2. Set the environment variables Vertex AI needs:
 
    ```bash
    export GOOGLE_CLOUD_PROJECT='<Your Google Cloud Project ID>'  # Change this
-   export GOOGLE_CLOUD_REGION='us-central1' # If you change this, make sure the region is supported.
+   export GOOGLE_CLOUD_LOCATION='global'
+   export GOOGLE_GENAI_USE_ENTERPRISE=true
    ```
 
-3. Authenticate to your Google Cloud Project:
+3. Authenticate to your Google Cloud project:
 
    ```sh
    gcloud config set project $GOOGLE_CLOUD_PROJECT
@@ -38,61 +30,33 @@ To run the Streamlit Application locally (on Cloud Shell), we need to perform th
    gcloud auth application-default login -q
    ```
 
-4. To run the application locally, execute the following command:
-
-   In Cloud Shell, execute the following command:
+4. Run the app:
 
    ```bash
-   streamlit run app.py \
-     --browser.serverAddress=localhost \
-     --server.enableCORS=false \
-     --server.enableXsrfProtection=false \
-     --server.port 8080
+   uv run streamlit run app.py
    ```
 
-The application will startup and you will be provided a URL to the application. Use Cloud Shell's [web preview](https://cloud.google.com/shell/docs/using-web-preview) function to launch the preview page. You may also visit that in the browser to view the application. Choose the functionality that you would like to check out and the application will prompt the Gemini API in Vertex AI and display the responses.
+   Open the URL it prints, record yourself singing, and AriaCoach will respond.
 
-## Build and Deploy the Application to Cloud Run
+## Deploy to Cloud Run
 
-> NOTE: **Before you move forward, ensure that you have followed the instructions in [SETUP.md](../SETUP.md).**
-> Additionally, ensure that you have cloned this repository and you are currently in the `live-translation-demo` folder. This should be your active working directory for the rest of the commands.
-
-To deploy the Streamlit Application in [Cloud Run](https://cloud.google.com/run/docs/quickstarts/deploy-container), we need to perform the following steps:
-
-1. Your Cloud Run app requires access to two environment variables:
-
-   - `GOOGLE_CLOUD_PROJECT` : This the Google Cloud project ID.
-   - `GOOGLE_CLOUD_REGION` : This is the region in which you are deploying your Cloud Run app. For e.g. us-central1.
-
-   These variables are needed since Vertex AI needs the Google Cloud Project ID and the region.
-
-   In Cloud Shell, execute the following commands:
+1. Set the project and region:
 
    ```bash
    export GOOGLE_CLOUD_PROJECT='<Your Google Cloud Project ID>'  # Change this
-   export GOOGLE_CLOUD_REGION='us-central1'                      # If you change this, make sure the region is supported.
+   export GOOGLE_CLOUD_REGION='us-central1'
    ```
 
-2. Build and deploy the service to Cloud Run:
-
-   In Cloud Shell, execute the following command to name the Cloud Run service:
+2. Deploy:
 
    ```bash
-   export SERVICE_NAME='live-translation-demo' # This is the name of our Application and Cloud Run service. Change it if you'd like.
-   ```
-
-   In Cloud Shell, execute the following command:
-
-   ```bash
-   gcloud run deploy "$SERVICE_NAME" \
+   gcloud run deploy aria-coach \
      --port=8080 \
      --source=. \
      --allow-unauthenticated \
      --region=$GOOGLE_CLOUD_REGION \
      --project=$GOOGLE_CLOUD_PROJECT \
-     --set-env-vars=GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_REGION=$GOOGLE_CLOUD_REGION
+     --set-env-vars=GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION=$GOOGLE_CLOUD_REGION
    ```
 
-On successful deployment, you will be provided a URL to the Cloud Run service. You can visit that in the browser to view the Cloud Run application that you just deployed. Choose the functionality that you would like to check out and the application will prompt the Gemini API in Vertex AI and display the responses.
-
-Congratulations!
+On success you get a URL to the deployed service.
