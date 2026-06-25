@@ -1,14 +1,18 @@
+import io
+import wave
+
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
-from google.api_core.client_options import ClientOptions
-from google.cloud import texttospeech_v1beta1 as texttospeech
 from google.genai.chats import Chat
 from google.genai.types import (
     GenerateContentConfig,
     Part,
+    PrebuiltVoiceConfig,
+    SpeechConfig,
     ThinkingConfig,
     ThinkingLevel,
+    VoiceConfig,
 )
 
 MODEL_ID = "gemini-3.5-flash"
@@ -18,48 +22,50 @@ LANGUAGE_CODE = "en-us"
 
 
 @st.cache_resource
-def load_chat() -> Chat:
-    """Load Google Gen AI Client."""
+def load_clients() -> tuple[Chat, genai.Client]:
+    """Load Google Gen AI chat session and client."""
     load_dotenv(override=True)
     client = genai.Client()
 
-    return client.chats.create(
+    chat = client.chats.create(
         model=MODEL_ID,
         config=GenerateContentConfig(
             system_instruction="Be as brief as possible and respond for speech. You are an expert singing coach. Help improve the singing performance of singer in the audio.",
             thinking_config=ThinkingConfig(thinking_level=ThinkingLevel.MINIMAL),
         ),
     )
+    return chat, client
 
 
-@st.cache_resource
-def load_tts_client() -> texttospeech.TextToSpeechClient:
-    """Load Text-to-Speech Client."""
-    return texttospeech.TextToSpeechClient(
-        client_options=ClientOptions(api_endpoint="us-texttospeech.googleapis.com")
-    )
+chat, client = load_clients()
 
 
-chat = load_chat()
-tts_client = load_tts_client()
-
-
-def generate_audio(
-    text: str, voice_name: str = VOICE_NAME, language_code: str = LANGUAGE_CODE
-) -> bytes:
-    """Generates audio from text using Google Cloud Text-to-Speech."""
-    response = tts_client.synthesize_speech(
-        input=texttospeech.SynthesisInput(text=text),
-        voice=texttospeech.VoiceSelectionParams(
-            language_code=language_code,
-            name=voice_name,
-            model_name=VOICE_MODEL_ID,
-        ),
-        audio_config=texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
+def generate_audio(text: str) -> bytes:
+    """Generates WAV audio from text using Gemini TTS (returns 24kHz PCM as WAV)."""
+    response = client.models.generate_content(
+        model=VOICE_MODEL_ID,
+        contents=text,
+        config=GenerateContentConfig(
+            speech_config=SpeechConfig(
+                language_code=LANGUAGE_CODE,
+                voice_config=VoiceConfig(
+                    prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=VOICE_NAME)
+                ),
+            ),
         ),
     )
-    return response.audio_content
+    parts = response.parts
+    assert parts and parts[0].inline_data, "Gemini TTS returned no audio"
+    pcm = parts[0].inline_data.data
+    assert pcm is not None, "Gemini TTS returned no audio"
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(pcm)
+    return buffer.getvalue()
 
 
 def main() -> None:
@@ -83,8 +89,7 @@ def main() -> None:
         with st.spinner("Generating voice feedback..."):
             output_audio_bytes = generate_audio(text)
 
-        if output_audio_bytes:
-            st.audio(output_audio_bytes, format="audio/mp3", autoplay=True)
+        st.audio(output_audio_bytes, format="audio/wav", autoplay=True)
 
 
 if __name__ == "__main__":
