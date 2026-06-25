@@ -6,7 +6,6 @@ from google.cloud import texttospeech_v1beta1 as texttospeech
 from google.genai.chats import Chat
 from google.genai.types import GenerateContentConfig, Part
 
-# Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
@@ -25,7 +24,7 @@ def load_chat() -> Chat:
     return client.chats.create(
         model=MODEL_ID,
         config=GenerateContentConfig(
-            system_instruction="Be as brief as possible. You are an expert singing coach. Help improve the singing performance of the audio. Be conversational, and straight to the point.",
+            system_instruction="Be as brief as possible. Don't include any formatting. You are an expert singing coach. Help improve the singing performance of the audio. Be conversational, and straight to the point.",
         ),
     )
 
@@ -39,23 +38,13 @@ def load_tts_client() -> texttospeech.TextToSpeechClient:
 
 
 chat = load_chat()
-
 tts_client = load_tts_client()
 
 
-def play_audio(audio_bytes: bytes) -> None:
-    """Plays the audio from a byte stream."""
-    if audio_bytes is not None:
-        try:
-            st.audio(audio_bytes, format="audio/wav", autoplay=True)
-        except Exception as e:  # pylint: disable=broad-except
-            st.error(f"Error playing audio: {e}")
-
-
-def generate_audio(text: str, voice_name: str = VOICE_NAME, language_code: str = LANGUAGE_CODE) -> bytes:
+def generate_audio(
+    text: str, voice_name: str = VOICE_NAME, language_code: str = LANGUAGE_CODE
+) -> bytes:
     """Generates audio from text using Google Cloud Text-to-Speech."""
-    # Perform the text-to-speech request on the text input with the selected
-    # voice parameters and audio file type
     response = tts_client.synthesize_speech(
         input=texttospeech.SynthesisInput(text=text),
         voice=texttospeech.VoiceSelectionParams(
@@ -74,25 +63,24 @@ def main() -> None:
     """Main function to run the Streamlit app."""
     st.title("AriaCoach - Singing Teacher")
 
-    audio_input = st.audio_input("Record a voice message")
+    audio_input = st.audio_input("Record your singing")
 
     if audio_input:
-        user_input = Part.from_bytes(data=audio_input.getvalue(), mime_type="audio/wav")
+        audio_bytes = audio_input.getvalue()
+        user_input = Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
 
         instruction = "Give feedback on the following audio of singing."
-        response = chat.send_message(message=[instruction, user_input])
+        with st.spinner("Analyzing your singing..."):
+            response = chat.send_message(message=[instruction, user_input])
 
         with st.chat_message("assistant"):
             st.markdown(response.text)
 
-        output_audio_bytes = generate_audio(
-            response.text,
-        )
+        with st.spinner("Generating voice feedback..."):
+            output_audio_bytes = generate_audio(response.text)
 
         if output_audio_bytes:
-            play_audio(output_audio_bytes)
-
-        audio_input = None
+            st.audio(output_audio_bytes, format="audio/mp3", autoplay=True)
 
 
 if __name__ == "__main__":

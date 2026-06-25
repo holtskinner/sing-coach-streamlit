@@ -9,6 +9,5 @@ dependencies = [
     "streamlit>=1.58.0",
     "pyOpenSSL",
     "python-dotenv>=1.2.2",
-    "sounddevice",
     "google-cloud-texttospeech",
 ]
