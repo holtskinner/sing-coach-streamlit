@@ -24,7 +24,7 @@ def load_chat() -> Chat:
     return client.chats.create(
         model=MODEL_ID,
         config=GenerateContentConfig(
-            system_instruction="Be as brief as possible. Don't include any formatting. You are an expert singing coach. Help improve the singing performance of the audio. Be conversational, and straight to the point.",
+            system_instruction="Be as brief as possible and respond for speech. You are an expert singing coach. Help improve the singing performance of singer in the audio.",
         ),
     )
 
