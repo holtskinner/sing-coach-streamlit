@@ -4,10 +4,12 @@ from google import genai
 from google.api_core.client_options import ClientOptions
 from google.cloud import texttospeech_v1beta1 as texttospeech
 from google.genai.chats import Chat
-from google.genai.types import GenerateContentConfig, Part
-
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
+from google.genai.types import (
+    GenerateContentConfig,
+    Part,
+    ThinkingConfig,
+    ThinkingLevel,
+)
 
 MODEL_ID = "gemini-3.5-flash"
 VOICE_MODEL_ID = "gemini-3.1-flash-tts-preview"
@@ -25,6 +27,7 @@ def load_chat() -> Chat:
         model=MODEL_ID,
         config=GenerateContentConfig(
             system_instruction="Be as brief as possible and respond for speech. You are an expert singing coach. Help improve the singing performance of singer in the audio.",
+            thinking_config=ThinkingConfig(thinking_level=ThinkingLevel.MINIMAL),
         ),
     )
 
@@ -66,18 +69,19 @@ def main() -> None:
     audio_input = st.audio_input("Record your singing")
 
     if audio_input:
-        audio_bytes = audio_input.getvalue()
-        user_input = Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
-
-        instruction = "Give feedback on the following audio of singing."
         with st.spinner("Analyzing your singing..."):
-            response = chat.send_message(message=[instruction, user_input])
+            response = chat.send_message(
+                message=Part.from_bytes(
+                    data=audio_input.getvalue(), mime_type="audio/wav"
+                )
+            )
+            text = response.text or "Sorry, I couldn't analyze that."
 
         with st.chat_message("assistant"):
-            st.markdown(response.text)
+            st.markdown(text)
 
         with st.spinner("Generating voice feedback..."):
-            output_audio_bytes = generate_audio(response.text)
+            output_audio_bytes = generate_audio(text)
 
         if output_audio_bytes:
             st.audio(output_audio_bytes, format="audio/mp3", autoplay=True)
