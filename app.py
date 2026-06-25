@@ -15,9 +15,9 @@ from google.genai.types import (
     VoiceConfig,
 )
 
-MODEL_ID = "gemini-3.5-flash"
+MODEL_ID = "gemini-3.1-flash-lite"
 VOICE_MODEL_ID = "gemini-3.1-flash-tts-preview"
-VOICE_NAME = "Aoede"
+VOICE_NAME = "Achird"
 LANGUAGE_CODE = "en-us"
 
 
@@ -30,7 +30,7 @@ def load_clients() -> tuple[Chat, genai.Client]:
     chat = client.chats.create(
         model=MODEL_ID,
         config=GenerateContentConfig(
-            system_instruction="Be as brief as possible and respond for speech. You are an expert singing coach. Help improve the singing performance of singer in the audio.",
+            system_instruction="Be brief and respond for speech. You are an expert singing coach. Help improve the singing performance of singer in the audio. If the performance is especially bad, feel free to be a little snarky (think Simon Cowell) if needed.",
             thinking_config=ThinkingConfig(thinking_level=ThinkingLevel.MINIMAL),
         ),
     )
