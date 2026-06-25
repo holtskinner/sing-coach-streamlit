@@ -61,9 +61,9 @@ def generate_audio(text: str) -> bytes:
         ),
     )
     parts = response.parts
-    assert parts and parts[0].inline_data, "Gemini TTS returned no audio"
+    if not parts or not parts[0].inline_data or not parts[0].inline_data.data:
+        raise RuntimeError("Gemini TTS returned no audio")
     pcm = parts[0].inline_data.data
-    assert pcm is not None, "Gemini TTS returned no audio"
 
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wf:
@@ -78,9 +78,10 @@ def main() -> None:
     """Main function to run the Streamlit app."""
     st.title("AriaCoach - Singing Teacher")
 
-    if st.button("Start over") and "turns" in st.session_state:
-        del st.session_state["chat"]  # next get_chat() makes a fresh session
-        del st.session_state["turns"]
+    if st.button("Start over"):
+        # Drop chat + UI history; next get_chat() makes a fresh session.
+        st.session_state.pop("chat", None)
+        st.session_state.pop("turns", None)
         st.rerun()
 
     # Replay prior turns; chat.send_message keeps model-side history, this keeps the UI in sync.
@@ -98,14 +99,18 @@ def main() -> None:
         with st.chat_message("user"):
             st.audio(data, format="audio/wav")
 
-        with st.spinner("Analyzing your singing..."):
-            response = chat.send_message(
-                message=Part.from_bytes(data=data, mime_type="audio/wav")
-            )
-            text = response.text or "Sorry, I couldn't analyze that."
+        try:
+            with st.spinner("Analyzing your singing..."):
+                response = chat.send_message(
+                    message=Part.from_bytes(data=data, mime_type="audio/wav")
+                )
+                text = response.text or "Sorry, I couldn't analyze that."
 
-        with st.spinner("Generating voice feedback..."):
-            output_audio_bytes = generate_audio(text)
+            with st.spinner("Generating voice feedback..."):
+                output_audio_bytes = generate_audio(text)
+        except Exception:
+            st.error("Something went wrong talking to Gemini. Please try again.")
+            st.stop()
 
         with st.chat_message("assistant"):
             st.markdown(text)
