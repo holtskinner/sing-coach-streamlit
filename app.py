@@ -24,9 +24,47 @@ from google.genai.types import (
     VoiceConfig,
 )
 
-MODEL_ID = "gemini-3.1-flash-lite"
+# Display name -> model id.
+MODELS = {
+    "Gemini 3.1 Flash Lite": "gemini-3.1-flash-lite",
+    "Gemini 3.5 Flash": "gemini-3.5-flash",
+    "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
+}
+# Gemini-TTS prebuilt voices, see
+# https://docs.cloud.google.com/text-to-speech/docs/gemini-tts#voice_options
+VOICES = [
+    "Achernar",
+    "Achird",
+    "Algenib",
+    "Algieba",
+    "Alnilam",
+    "Aoede",
+    "Autonoe",
+    "Callirrhoe",
+    "Charon",
+    "Despina",
+    "Enceladus",
+    "Erinome",
+    "Fenrir",
+    "Gacrux",
+    "Iapetus",
+    "Kore",
+    "Laomedeia",
+    "Leda",
+    "Orus",
+    "Pulcherrima",
+    "Puck",
+    "Rasalgethi",
+    "Sadachbia",
+    "Sadaltager",
+    "Schedar",
+    "Sulafat",
+    "Umbriel",
+    "Vindemiatrix",
+    "Zephyr",
+    "Zubenelgenubi",
+]
 VOICE_MODEL_ID = "gemini-3.1-flash-tts-preview"
-VOICE_NAME = "Achird"
 LANGUAGE_CODE = "en-us"
 MAX_TURNS = 20  # UI history cap; trims oldest audio to bound session_state growth
 
@@ -71,24 +109,30 @@ def load_client() -> genai.Client:
     return genai.Client()
 
 
-def get_chat(client: genai.Client) -> Chat:
-    """Per-session chat so history persists across reruns but not across users."""
-    if "chat" not in st.session_state:
+def get_chat(client: genai.Client, model: str) -> Chat:
+    """Per-session chat so history persists across reruns but not across users.
+
+    Recreates the chat when the model changes (history is dropped, since the
+    new model has no record of the old turns anyway).
+    """
+    if "chat" not in st.session_state or st.session_state.get("model") != model:
+        st.session_state.model = model
+
+        thinking_level = ThinkingLevel.LOW if "pro" in model else ThinkingLevel.MINIMAL
         st.session_state.chat = client.chats.create(
-            model=MODEL_ID,
+            model=model,
             config=GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
-                thinking_config=ThinkingConfig(thinking_level=ThinkingLevel.MINIMAL),
+                thinking_config=ThinkingConfig(thinking_level=thinking_level),
             ),
         )
     return st.session_state.chat
 
 
 client = load_client()
-chat = get_chat(client)
 
 
-def generate_audio(text: str) -> bytes:
+def generate_audio(text: str, voice: str) -> bytes:
     """Generates WAV audio from text using Gemini TTS (returns 24kHz PCM as WAV)."""
     response = client.models.generate_content(
         model=VOICE_MODEL_ID,
@@ -97,7 +141,7 @@ def generate_audio(text: str) -> bytes:
             speech_config=SpeechConfig(
                 language_code=LANGUAGE_CODE,
                 voice_config=VoiceConfig(
-                    prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=VOICE_NAME)
+                    prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=voice)
                 ),
             ),
         ),
@@ -143,6 +187,12 @@ def clean_youtube_url(url: str) -> str:
 def main() -> None:
     """Main function to run the Streamlit app."""
     st.title("AriaCoach - Singing Teacher")
+
+    with st.sidebar:
+        model = MODELS[st.selectbox("Model", MODELS)]
+        voice = st.selectbox("Voice", VOICES, index=VOICES.index("Achird"))
+
+    chat = get_chat(client, model)
 
     if st.button("Start over"):
         # Drop chat + UI history; next get_chat() makes a fresh session.
@@ -190,7 +240,15 @@ def main() -> None:
             ]
             try:
                 spectrogram = make_spectrogram(data)
-                message.append(Part.from_bytes(data=spectrogram, mime_type="image/png"))
+                message.append(
+                    Part.from_bytes(
+                        data=spectrogram,
+                        mime_type="image/png",
+                        media_resolution=PartMediaResolution(
+                            level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+                        ),
+                    )
+                )
             except Exception as e:
                 logging.warning("Spectrogram generation failed: %s", e)
             with st.chat_message("user"):
@@ -216,7 +274,7 @@ def main() -> None:
                 text = response.text or "Sorry, I couldn't analyze that."
 
             with st.spinner("Generating voice feedback..."):
-                output_audio_bytes = generate_audio(text)
+                output_audio_bytes = generate_audio(text, voice)
         except Exception as e:
             logging.exception(e)
             st.error("Something went wrong talking to Gemini. Please try again.")
