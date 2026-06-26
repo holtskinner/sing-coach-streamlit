@@ -10,4 +10,5 @@ dependencies = [
     "pyOpenSSL",
     "python-dotenv>=1.2.2",
     "watchdog",
+    "matplotlib>=3.9.0",
 ]

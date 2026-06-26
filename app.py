@@ -3,6 +3,11 @@ import logging
 import urllib.parse
 import wave
 
+import matplotlib
+
+matplotlib.use("Agg")  # headless backend; no GUI needed for rendering to PNG
+import matplotlib.pyplot as plt
+import numpy as np
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
@@ -29,6 +34,12 @@ SYSTEM_INSTRUCTION = """\
 You are AriaCoach, an expert vocal coach giving spoken feedback on a short \
 singing clip the user just recorded. Your goal is to help them sing better, \
 fast.
+
+You may also receive a mel spectrogram image of the same clip. Use it to \
+corroborate what you hear - vertical smearing or shifting bands reveal pitch \
+drift and vibrato, bright high-frequency energy hints at strain or breathiness, \
+and gaps show phrasing and timing. Let the audio lead; treat the image as \
+supporting evidence and never mention the spectrogram itself to the user.
 
 Listen to the audio and assess these dimensions, in priority order:
 1. Pitch accuracy and intonation - are notes on key? Note any consistent \
@@ -105,6 +116,21 @@ def generate_audio(text: str) -> bytes:
     return buffer.getvalue()
 
 
+def make_spectrogram(wav_bytes: bytes) -> bytes:
+    """Render a spectrogram PNG from WAV bytes (st.audio_input gives 16-bit mono WAV)."""
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr = wf.getframerate()
+        samples = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
+
+    fig, ax = plt.subplots(figsize=(8, 3))
+    with np.errstate(divide="ignore"):
+        ax.specgram(samples, Fs=sr)
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    plt.close(fig)
+    return buffer.getvalue()
+
+
 def clean_youtube_url(url: str) -> str:
     if not url.strip().startswith(("http://", "https://")):
         url = "https://" + url.strip()
@@ -131,6 +157,8 @@ def main() -> None:
                 st.video(turn["input"])
             else:
                 st.audio(turn["input"], format=turn.get("input_mime", "audio/wav"))
+                if turn.get("spectrogram"):
+                    st.image(turn["spectrogram"], caption="Spectrogram")
         with st.chat_message("assistant"):
             st.markdown(turn["text"])
             st.audio(turn["output"], format="audio/wav")
@@ -147,18 +175,28 @@ def main() -> None:
     source = audio_input or uploaded
 
     if source or youtube_url:
+        spectrogram = None
         if source:
             data = source.getvalue()
             mime_type = source.type or "audio/wav"
-            message = Part.from_bytes(
-                data=data,
-                mime_type=mime_type,
-                media_resolution=PartMediaResolution(
-                    level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
-                ),
-            )
+            message = [
+                Part.from_bytes(
+                    data=data,
+                    mime_type=mime_type,
+                    media_resolution=PartMediaResolution(
+                        level=PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+                    ),
+                )
+            ]
+            try:
+                spectrogram = make_spectrogram(data)
+                message.append(Part.from_bytes(data=spectrogram, mime_type="image/png"))
+            except Exception as e:
+                logging.warning("Spectrogram generation failed: %s", e)
             with st.chat_message("user"):
                 st.audio(data, format=mime_type)
+                if spectrogram:
+                    st.image(spectrogram, caption="Spectrogram")
         else:
             data = youtube_url
             mime_type = "youtube"
@@ -193,6 +231,7 @@ def main() -> None:
             {
                 "input": data,
                 "input_mime": mime_type,
+                "spectrogram": spectrogram,
                 "text": text,
                 "output": output_audio_bytes,
             }
