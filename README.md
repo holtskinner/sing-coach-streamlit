@@ -14,12 +14,18 @@ Runs locally or on Cloud Run.
    uv sync
    ```
 
-2. Set the environment variables Vertex AI needs:
+2. Set the environment variables Agent Platform needs in a `.env` file:
 
    ```bash
    export GOOGLE_CLOUD_PROJECT='<Your Google Cloud Project ID>'  # Change this
    export GOOGLE_CLOUD_LOCATION='global'
    export GOOGLE_GENAI_USE_ENTERPRISE=true
+   ```
+
+   or for the Gemini Developer API
+
+   ```bash
+   export GEMINI_API_KEY="your-api-key"
    ```
 
 3. Authenticate to your Google Cloud project:
