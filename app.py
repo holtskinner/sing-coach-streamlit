@@ -1,5 +1,6 @@
 import io
 import logging
+import urllib.parse
 import wave
 
 import streamlit as st
@@ -104,6 +105,15 @@ def generate_audio(text: str) -> bytes:
     return buffer.getvalue()
 
 
+def clean_youtube_url(url: str) -> str:
+    if not url.strip().startswith(("http://", "https://")):
+        url = "https://" + url.strip()
+    parsed = urllib.parse.urlparse(url)
+    qs = urllib.parse.parse_qs(parsed.query)
+    clean_qs = urllib.parse.urlencode({k: qs[k][0] for k in ("v", "t") if k in qs})
+    return parsed._replace(query=clean_qs).geturl()
+
+
 def main() -> None:
     """Main function to run the Streamlit app."""
     st.title("AriaCoach - Singing Teacher")
@@ -131,6 +141,8 @@ def main() -> None:
         type=["wav", "mp3", "m4a", "aac", "ogg", "flac", "mp4", "mov", "webm"],
     )
     youtube_url = st.text_input("...or paste a YouTube URL")
+    if youtube_url:
+        youtube_url = clean_youtube_url(youtube_url)
 
     source = audio_input or uploaded
 
