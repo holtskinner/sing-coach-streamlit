@@ -55,7 +55,7 @@ or stage directions - just natural spoken prose.
 def load_client() -> genai.Client:
     """Load the Google Gen AI client."""
     load_dotenv(override=True)
-    return genai.Client(location="global")
+    return genai.Client()
 
 
 def get_chat(client: genai.Client) -> Chat:
