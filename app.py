@@ -1,4 +1,5 @@
 import io
+import logging
 import wave
 
 import streamlit as st
@@ -166,7 +167,8 @@ def main() -> None:
 
             with st.spinner("Generating voice feedback..."):
                 output_audio_bytes = generate_audio(text)
-        except Exception:
+        except Exception as e:
+            logging.exception(e)
             st.error("Something went wrong talking to Gemini. Please try again.")
             st.stop()
 
